@@ -8,5 +8,8 @@ Thumbs.db
 *.swp
 *.swo
 
+# Environment variables
+.env
+
 # Claude Code
 .claude/
