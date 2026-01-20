@@ -3,20 +3,25 @@
 import { useState, useRef, useEffect } from "react";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
+import { StreamingLogs } from "@/components/StreamingLogs";
 import {
-  sendChatMessage,
+  sendChatMessageStream,
+  createFrontendLog,
   ChatMessage as ChatMessageType,
   Book,
+  DebugLogEntry,
 } from "@/lib/api";
 
 interface DisplayMessage extends ChatMessageType {
   books?: Book[] | null;
+  debugLogs?: DebugLogEntry[] | null;
 }
 
 export default function Home() {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamingLogs, setStreamingLogs] = useState<DebugLogEntry[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -25,25 +30,59 @@ export default function Home() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, streamingLogs]);
 
   const handleSend = async (content: string) => {
     const userMessage: DisplayMessage = { role: "user", content };
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
     setError(null);
+    setStreamingLogs([]);
+
+    // Frontend → Backend のログを追加
+    const frontendLog = createFrontendLog(
+      "Frontend → Backend: チャットリクエスト",
+      { message: content, historyLength: messages.length }
+    );
+    setStreamingLogs([frontendLog]);
 
     const history: ChatMessageType[] = messages.map(({ role, content }) => ({
       role,
       content,
     }));
 
+    const collectedLogs: DebugLogEntry[] = [frontendLog];
+    let resultMessage: string = "";
+    let resultBooks: Book[] | null = null as Book[] | null;
+
     try {
-      const response = await sendChatMessage(content, history);
+      await sendChatMessageStream(content, history, (event) => {
+        if (event.type === "log") {
+          const logData = event.data as DebugLogEntry;
+          collectedLogs.push(logData);
+          setStreamingLogs([...collectedLogs]);
+        } else if (event.type === "done") {
+          const doneData = event.data as { message: string; books: Book[] | null };
+          resultMessage = doneData.message;
+          resultBooks = doneData.books;
+        } else if (event.type === "error") {
+          const errorData = event.data as { message: string };
+          setError(errorData.message);
+        }
+      });
+
+      // Backend → Frontend のログを追加
+      const responseLog = createFrontendLog(
+        "Backend → Frontend: 最終レスポンス",
+        { messageLength: resultMessage.length, booksCount: resultBooks ? resultBooks.length : 0 }
+      );
+      collectedLogs.push(responseLog);
+
       const assistantMessage: DisplayMessage = {
         role: "assistant",
-        content: response.message,
-        books: response.books,
+        content: resultMessage,
+        books: resultBooks,
+        debugLogs: collectedLogs,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
@@ -52,6 +91,7 @@ export default function Home() {
       );
     } finally {
       setIsLoading(false);
+      setStreamingLogs([]);
     }
   };
 
@@ -67,7 +107,7 @@ export default function Home() {
       </header>
 
       <main className="flex-1 overflow-y-auto p-4">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !isLoading ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
               <p className="text-lg mb-2">こんにちは！</p>
@@ -80,24 +120,10 @@ export default function Home() {
         ) : (
           <div>
             {messages.map((msg, i) => (
-              <ChatMessage key={i} message={msg} books={msg.books} />
+              <ChatMessage key={i} message={msg} books={msg.books} debugLogs={msg.debugLogs} />
             ))}
             {isLoading && (
-              <div className="flex justify-start mb-4">
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-3">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                    <span
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.1s" }}
-                    />
-                    <span
-                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.2s" }}
-                    />
-                  </div>
-                </div>
-              </div>
+              <StreamingLogs logs={streamingLogs} />
             )}
             <div ref={messagesEndRef} />
           </div>

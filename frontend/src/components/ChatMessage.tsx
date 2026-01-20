@@ -1,15 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { ChatMessage as ChatMessageType, Book } from "@/lib/api";
+import { ChatMessage as ChatMessageType, Book, DebugLogEntry } from "@/lib/api";
 
 interface Props {
   message: ChatMessageType;
   books?: Book[] | null;
+  debugLogs?: DebugLogEntry[] | null;
 }
 
-export function ChatMessage({ message, books }: Props) {
+const LOG_TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
+  frontend_request: { icon: "→", color: "text-orange-500" },
+  openai_request: { icon: "→", color: "text-blue-500" },
+  openai_response: { icon: "←", color: "text-blue-500" },
+  tool_call: { icon: "⚙", color: "text-purple-500" },
+  tool_result: { icon: "→", color: "text-purple-500" },
+  cinii_request: { icon: "→", color: "text-green-500" },
+  cinii_response: { icon: "←", color: "text-green-500" },
+  error: { icon: "✕", color: "text-red-500" },
+};
+
+export function ChatMessage({ message, books, debugLogs }: Props) {
   const isUser = message.role === "user";
+  const [isLogOpen, setIsLogOpen] = useState(false);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
@@ -31,7 +45,62 @@ export function ChatMessage({ message, books }: Props) {
             ))}
           </div>
         )}
+
+        {debugLogs && debugLogs.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+            <button
+              onClick={() => setIsLogOpen(!isLogOpen)}
+              className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              <span className={`transition-transform ${isLogOpen ? "rotate-90" : ""}`}>
+                ▶
+              </span>
+              内部通信ログ ({debugLogs.length}件)
+            </button>
+
+            {isLogOpen && (
+              <div className="mt-2 space-y-2">
+                {debugLogs.map((log, i) => (
+                  <DebugLogItem key={i} log={log} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function DebugLogItem({ log }: { log: DebugLogEntry }) {
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const config = LOG_TYPE_CONFIG[log.type] || { icon: "•", color: "text-gray-500" };
+
+  return (
+    <div className="text-xs font-mono">
+      <div className="flex items-start gap-2">
+        <span className={`${config.color} font-bold shrink-0 w-4 text-center`}>
+          {config.icon}
+        </span>
+        <span className="text-gray-600 dark:text-gray-300">{log.summary}</span>
+      </div>
+
+      {log.details && (
+        <div className="ml-6 mt-1">
+          <button
+            onClick={() => setIsDetailOpen(!isDetailOpen)}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-[10px]"
+          >
+            {isDetailOpen ? "[-] 詳細を隠す" : "[+] 詳細を見る"}
+          </button>
+
+          {isDetailOpen && (
+            <pre className="mt-1 p-2 bg-gray-200 dark:bg-gray-900 rounded text-[10px] overflow-x-auto">
+              {JSON.stringify(log.details, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }
