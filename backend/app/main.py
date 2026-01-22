@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import books, chat
+from app.config import get_settings
 
 app = FastAPI(
     title="Book Info Chat API",
@@ -9,9 +10,11 @@ app = FastAPI(
 )
 
 # CORS設定（Next.jsフロントエンドからのアクセスを許可）
+settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.cors_origins_list(),
+    allow_origin_regex=settings.cors_allow_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
