@@ -8,6 +8,7 @@ LLMがユーザーの意図を理解し、CiNii Books APIを使って本を検�
 
 ![デモ1](asset/screenshot-1.png)
 ![デモ2](asset/screenshot-2.png)
+![デモ3](asset/screenshot-3.png)
 
 ## 技術スタック
 
