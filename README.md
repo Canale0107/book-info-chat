@@ -4,6 +4,11 @@
 
 LLMがユーザーの意図を理解し、CiNii Books APIを使って本を検索・推薦します。
 
+## Demo
+
+![デモ1](asset/screenshot-1.png)
+![デモ2](asset/screenshot-2.png)
+
 ## 技術スタック
 
 - **フロントエンド**: Next.js (TypeScript, Tailwind CSS)
